@@ -32,7 +32,7 @@ async fn prompt(
     // Send the prompt to openai and get our result image url
     let image_response: ImageGenerationResponse = reqwest::Client::new()
         .post("https://api.openai.com/v1/images/generations")
-        .bearer_auth(std::env::var("OPENAPI_TOKEN").expect("missing OPENAPI_TOKEN"))
+        .bearer_auth(std::env::var("OPENAI_TOKEN").expect("missing OPENAPI_TOKEN"))
         .json(&ImageGenerationRequest {
             prompt: prompt.clone(),
         })
@@ -50,6 +50,7 @@ async fn prompt(
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().expect("Failed to load environment file");
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![prompt()],
