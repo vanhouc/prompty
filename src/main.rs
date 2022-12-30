@@ -1,44 +1,67 @@
-use std::env;
+use poise::serenity_prelude as serenity;
+use serde::{Deserialize, Serialize};
 
-use serenity::async_trait;
-use serenity::framework::standard::macros::{command, group};
-use serenity::framework::standard::{CommandResult, StandardFramework};
-use serenity::model::channel::Message;
-use serenity::prelude::*;
+#[derive(Serialize)]
+struct ImageGenerationRequest {
+    prompt: String,
+}
+#[derive(Deserialize)]
+struct ImageGenerationResponse {
+    created: u128,
+    data: Vec<ImageGenerationResponseData>,
+}
+#[derive(Deserialize)]
+struct ImageGenerationResponseData {
+    url: String,
+}
 
-#[group]
-#[commands(ping)]
-struct General;
+struct Data {} // User data, which is stored and accessible in all command invocations
+type Error = Box<dyn std::error::Error + Send + Sync>;
+type Context<'a> = poise::Context<'a, Data, Error>;
 
-struct Handler;
+/// Takes a text prompt and creates a lovely image
+#[poise::command(slash_command)]
+async fn prompt(
+    ctx: Context<'_>,
+    #[description = "A text prompt for prompty to work off of"] prompt: String,
+) -> Result<(), Error> {
+    // It can take some time for openai to respond so send a defferal to discord to give us more time
+    ctx.defer().await?;
 
-#[async_trait]
-impl EventHandler for Handler {}
+    // Send the prompt to openai and get our result image url
+    let image_response: ImageGenerationResponse = reqwest::Client::new()
+        .post("https://api.openai.com/v1/images/generations")
+        .bearer_auth(std::env::var("OPENAPI_TOKEN").expect("missing OPENAPI_TOKEN"))
+        .json(&ImageGenerationRequest {
+            prompt: prompt.clone(),
+        })
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    // Reply with our generated url
+    ctx.send(|m| m.embed(|e| e.title(prompt).image(image_response.data[0].url.to_owned())))
+        .await?;
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() {
-    let framework = StandardFramework::new()
-        .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
-        .group(&GENERAL_GROUP);
+    let framework = poise::Framework::builder()
+        .options(poise::FrameworkOptions {
+            commands: vec![prompt()],
+            ..Default::default()
+        })
+        .token(std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN"))
+        .intents(serenity::GatewayIntents::non_privileged())
+        .setup(|ctx, _ready, framework| {
+            Box::pin(async move {
+                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+                Ok(Data {})
+            })
+        });
 
-    // Login with a bot token from the environment
-    let token = env::var("DISCORD_TOKEN").expect("token");
-    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
-    let mut client = Client::builder(token, intents)
-        .event_handler(Handler)
-        .framework(framework)
-        .await
-        .expect("Error creating client");
-
-    // start listening for events by starting a single shard
-    if let Err(why) = client.start().await {
-        println!("An error occurred while running the client: {:?}", why);
-    }
-}
-
-#[command]
-async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.reply(ctx, "Pong!").await?;
-
-    Ok(())
+    framework.run().await.unwrap();
 }
