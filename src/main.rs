@@ -5,10 +5,12 @@ use serde::{Deserialize, Serialize};
 struct ImageGenerationRequest {
     prompt: String,
 }
+
 #[derive(Deserialize)]
 struct ImageGenerationResponse {
     data: Vec<ImageGenerationResponseData>,
 }
+
 #[derive(Deserialize)]
 struct ImageGenerationResponseData {
     url: String,
