@@ -11,7 +11,7 @@ RUN rustup target add x86_64-unknown-linux-musl
 # If the Cargo.toml or Cargo.lock files have not changed,
 # we can use the docker build cache and skip these (typically slow) steps.
 RUN USER=root cargo new prompty
-WORKDIR /usr/src/url-shortener
+WORKDIR /usr/src/prompty
 COPY Cargo.toml Cargo.lock ./
 RUN cargo build --release
 
@@ -23,4 +23,4 @@ RUN cargo install --target x86_64-unknown-linux-musl --path .
 FROM scratch
 COPY --from=build /usr/local/cargo/bin/prompty .
 USER 1000
-CMD ["./url-shortener"]
+CMD ["./prompty"]
