@@ -53,7 +53,7 @@ async fn error_handler(error: poise::FrameworkError<'_, Data, Error>) {
 
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().expect("Failed to load environment file");
+    let _ = dotenv::dotenv();
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![prompt()],
