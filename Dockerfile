@@ -3,6 +3,6 @@ WORKDIR /usr/src/prompty
 COPY . .
 RUN cargo install --path .
 
-FROM debian:buster
+FROM debian:buster-slim
 COPY --from=builder /usr/local/cargo/bin/prompty /usr/local/bin/prompty
 CMD ["prompty"]
