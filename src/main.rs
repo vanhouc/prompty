@@ -2,8 +2,8 @@ use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
-struct ImageGenerationRequest {
-    prompt: String,
+struct ImageGenerationRequest<'a> {
+    prompt: &'a str,
 }
 
 #[derive(Deserialize)]
@@ -30,19 +30,17 @@ async fn prompt(
     ctx.defer().await?;
 
     // Send the prompt to openai and get our result image url
-    let image_response: ImageGenerationResponse = reqwest::Client::new()
+    let mut image_response: ImageGenerationResponse = reqwest::Client::new()
         .post("https://api.openai.com/v1/images/generations")
         .bearer_auth(std::env::var("OPENAPI_TOKEN").expect("missing OPENAPI_TOKEN"))
-        .json(&ImageGenerationRequest {
-            prompt: prompt.clone(),
-        })
+        .json(&ImageGenerationRequest { prompt: &prompt })
         .send()
         .await?
         .json()
         .await?;
-
+    let response_data = image_response.data.pop().expect("no response was sent");
     // Reply with our generated url
-    ctx.send(|m| m.embed(|e| e.title(prompt).image(image_response.data[0].url.to_owned())))
+    ctx.send(|m| m.embed(|e| e.title(prompt).image(response_data.url)))
         .await?;
 
     Ok(())
