@@ -16,12 +16,13 @@ struct ImageGenerationResponseData {
     url: String,
 }
 
+#[derive(Debug)]
 struct Data {} // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 /// Takes a text prompt and creates a lovely image
-#[poise::command(slash_command)]
+#[poise::command(slash_command, on_error = "error_handler")]
 async fn prompt(
     ctx: Context<'_>,
     #[description = "A text prompt for prompty to work off of"] prompt: String,
@@ -44,6 +45,10 @@ async fn prompt(
         .await?;
 
     Ok(())
+}
+
+async fn error_handler(error: poise::FrameworkError<'_, Data, Error>) {
+    println!("Oh noes, we got an error: {:?}", error);
 }
 
 #[tokio::main]
