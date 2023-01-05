@@ -48,6 +48,7 @@ async fn prompt(
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().expect("Failed to load environment file");
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![prompt()],
