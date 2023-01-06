@@ -55,8 +55,11 @@ async fn prompt(
                         if let Ok(image) = client.get(&data.url).send().await {
                             if let Ok(image_bytes) = image.bytes().await {
                                 let file = (&image_bytes[..], "ai_response.png");
-                                ctx.send(|m| m.content(prompt).attachment(file.into()))
-                                    .await?;
+                                ctx.send(|m| {
+                                    m.attachment(file.into())
+                                        .embed(|e| e.title(prompt).attachment("ai_response.png"))
+                                })
+                                .await?;
                             }
                         }
                     }
