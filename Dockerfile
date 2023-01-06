@@ -1,4 +1,4 @@
-FROM rust:1.66
+FROM rust:1.66 as builder
 
 WORKDIR /usr/src/prompty
 COPY . .
