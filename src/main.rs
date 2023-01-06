@@ -1,4 +1,5 @@
 use poise::serenity_prelude as serenity;
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -9,6 +10,16 @@ struct ImageGenerationRequest<'a> {
 #[derive(Deserialize)]
 struct ImageGenerationResponse {
     data: Vec<ImageGenerationResponseData>,
+}
+
+#[derive(Deserialize)]
+struct ErrorResponse {
+    error: OpenAiError,
+}
+
+#[derive(Deserialize)]
+struct OpenAiError {
+    message: String,
 }
 
 #[derive(Deserialize)]
@@ -29,21 +40,36 @@ async fn prompt(
 ) -> Result<(), Error> {
     // It can take some time for openai to respond so send a defferal to discord to give us more time
     ctx.defer().await?;
-
-    // Send the prompt to openai and get our result image url
-    let mut image_response: ImageGenerationResponse = reqwest::Client::new()
+    let client = reqwest::Client::new();
+    let openai_request = client
         .post("https://api.openai.com/v1/images/generations")
         .bearer_auth(std::env::var("OPENAI_TOKEN").expect("missing OPENAPI_TOKEN"))
         .json(&ImageGenerationRequest { prompt: &prompt })
         .send()
-        .await?
-        .json()
-        .await?;
-    let response_data = image_response.data.pop().expect("no response was sent");
-    // Reply with our generated url
-    ctx.send(|m| m.embed(|e| e.title(prompt).image(response_data.url)))
-        .await?;
-
+        .await;
+    match openai_request {
+        Ok(response) => match response.status() {
+            StatusCode::OK => {
+                if let Ok(image_response) = response.json::<ImageGenerationResponse>().await {
+                    if let Some(data) = image_response.data.get(0) {
+                        if let Ok(image) = client.get(&data.url).send().await {
+                            if let Ok(image_bytes) = image.bytes().await {
+                                let file = vec![(&image_bytes[..], "ai_response.png")];
+                                ctx.channel_id()
+                                    .send_files(ctx, file, |m| m.embed(|e| e.title(prompt)))
+                                    .await?;
+                            }
+                        }
+                    }
+                }
+            }
+            _ => (),
+        },
+        Err(_) => {
+            ctx.say("Oh no it appears the artist is unreachable!")
+                .await?;
+        }
+    }
     Ok(())
 }
 
