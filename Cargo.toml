@@ -6,9 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dotenv = "0.15"
-reqwest = "0.11.13"
 poise = "0.5.2"
-tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
+dotenv = "0.15"
+reqwest = { version = "0.11.13", default-features = false, features = [
+    "rustls-tls",
+] }
+tokio = { version = "1.21.2", default-features = false, features = [
+    "macros",
+    "rt-multi-thread",
+] }
 serde = "1.0"
 serde_json = "1.0"
