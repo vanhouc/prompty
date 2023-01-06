@@ -1,4 +1,4 @@
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
@@ -54,14 +54,16 @@ async fn prompt(
                     if let Some(data) = image_response.data.get(0) {
                         if let Ok(image) = client.get(&data.url).send().await {
                             if let Ok(image_bytes) = image.bytes().await {
-                                let file = vec![(&image_bytes[..], "ai_response.png")];
-                                ctx.channel_id()
-                                    .send_files(ctx, file, |m| m.embed(|e| e.title(prompt)))
+                                let file = (&image_bytes[..], "ai_response.png");
+                                ctx.send(|m| m.content(prompt).attachment(file.into()))
                                     .await?;
                             }
                         }
                     }
                 }
+            }
+            StatusCode::BAD_REQUEST => {
+                ctx.say("Bonk!!! Go directly to horny jail").await?;
             }
             _ => (),
         },
