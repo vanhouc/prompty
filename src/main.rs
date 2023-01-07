@@ -19,6 +19,7 @@ struct ErrorResponse {
 
 #[derive(Deserialize)]
 struct OpenAiError {
+    code: Option<String>,
     message: String,
 }
 
@@ -60,15 +61,42 @@ async fn prompt(
                                         .embed(|e| e.title(prompt).attachment("ai_response.png"))
                                 })
                                 .await?;
+                                return Ok(());
                             }
                         }
                     }
                 }
+                // Catch all in case anything fails while unpacking and posting the generated image
+                ctx.say("Uh oh something went wrong while I was painting your reply!")
+                    .await?;
             }
             StatusCode::BAD_REQUEST => {
-                ctx.say("Bonk!!! Go directly to horny jail").await?;
+                if let Ok(error_response) = response.json::<ErrorResponse>().await {
+                    if error_response.error.message.contains("safety") {
+                        ctx.say("Bonk!!! Go directly to horny jail").await?;
+                    } else if let Some(error_code) = error_response.error.code {
+                        if error_code == "billing_hard_limit_reached" {
+                            ctx.say("Looks like I'm all out of paint this month :(")
+                                .await?;
+                        } else {
+                            ctx.say(format!(
+                                "I received an error code I don't know: {error_code}"
+                            ))
+                            .await?;
+                        }
+                    }
+                } else {
+                    ctx.say("Wow that request was so terrible I can't even tell whats wrong")
+                        .await?;
+                }
             }
-            _ => (),
+            _ => {
+                let status_code = response.status();
+                ctx.say(format!(
+                    "I received a status code I don't know how to deal with: {status_code}"
+                ))
+                .await?;
+            }
         },
         Err(_) => {
             ctx.say("Oh no it appears the artist is unreachable!")
