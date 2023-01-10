@@ -1,51 +1,10 @@
-use bytes::Bytes;
+mod openai;
+
+use openai::PaintImageError;
 use poise::serenity_prelude::{self as serenity, ChannelId, Message};
-use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize)]
-struct ImageGenerationRequest<'a> {
-    prompt: &'a str,
-}
-
-#[derive(Deserialize)]
-struct ImageGenerationResponse {
-    data: [ImageGenerationResponseData; 1],
-}
-
-#[derive(Deserialize)]
-struct ErrorResponse {
-    error: OpenAiError,
-}
-
-#[derive(Deserialize)]
-struct OpenAiError {
-    code: Option<String>,
-    message: String,
-}
-
-#[derive(Deserialize)]
-struct ImageGenerationResponseData {
-    url: String,
-}
 
 #[derive(Debug)]
 struct Data {} // User data, which is stored and accessible in all command invocations
-#[derive(thiserror::Error, Debug)]
-enum PaintImageError {
-    #[error("OpenAI returned a safety error because the request was inappropriate")]
-    Safety,
-    #[error("The OpenAI account backing the bot reached its spending limit")]
-    LimitReached,
-    #[error("General network error occurred while fetching image")]
-    NetworkError,
-}
-
-impl From<reqwest::Error> for PaintImageError {
-    fn from(_: reqwest::Error) -> Self {
-        Self::NetworkError
-    }
-}
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -78,7 +37,7 @@ async fn draw_message(
 }
 
 async fn prompt_internal(ctx: Context<'_>, channel: ChannelId, prompt: &str) -> Result<(), Error> {
-    match get_openai_image(prompt).await {
+    match openai::get_openai_image(prompt).await {
         Ok(bytes) => {
             let file = (&bytes[..], "ai_response.png");
             channel
@@ -103,44 +62,6 @@ async fn prompt_internal(ctx: Context<'_>, channel: ChannelId, prompt: &str) -> 
         },
     }
     Ok(())
-}
-
-async fn get_openai_image(prompt: &str) -> Result<Bytes, PaintImageError> {
-    let client = reqwest::Client::new();
-    let generation_response = client
-        .post("https://api.openai.com/v1/images/generations")
-        .bearer_auth(std::env::var("OPENAI_TOKEN").expect("missing OPENAPI_TOKEN"))
-        .json(&ImageGenerationRequest { prompt })
-        .send()
-        .await?;
-    match generation_response.status() {
-        StatusCode::OK => client
-            .get(
-                &generation_response
-                    .json::<ImageGenerationResponse>()
-                    .await?
-                    .data[0]
-                    .url,
-            )
-            .send()
-            .await?
-            .bytes()
-            .await
-            .map_err(|e| e.into()),
-        StatusCode::BAD_REQUEST => {
-            let ai_error = generation_response.json::<ErrorResponse>().await?;
-            if let Some(code) = ai_error.error.code {
-                if code == "billing_hard_limit_reached" {
-                    return Err(PaintImageError::LimitReached);
-                }
-            }
-            if ai_error.error.message.contains("safety") {
-                return Err(PaintImageError::Safety);
-            }
-            Err(PaintImageError::NetworkError)
-        }
-        _ => Err(PaintImageError::NetworkError),
-    }
 }
 
 #[tokio::main]
