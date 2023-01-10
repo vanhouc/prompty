@@ -34,9 +34,9 @@ struct Data {} // User data, which is stored and accessible in all command invoc
 #[derive(thiserror::Error, Debug)]
 enum PaintImageError {
     #[error("OpenAI returned a safety error because the request was inappropriate")]
-    SafetyError,
+    Safety,
     #[error("The OpenAI account backing the bot reached its spending limit")]
-    LimitReachedError,
+    LimitReached,
     #[error("General network error occurred while fetching image")]
     NetworkError,
 }
@@ -78,7 +78,7 @@ async fn draw_message(
 }
 
 async fn prompt_internal(ctx: Context<'_>, channel: ChannelId, prompt: &str) -> Result<(), Error> {
-    match get_openai_image(&prompt).await {
+    match get_openai_image(prompt).await {
         Ok(bytes) => {
             let file = (&bytes[..], "ai_response.png");
             channel
@@ -89,10 +89,10 @@ async fn prompt_internal(ctx: Context<'_>, channel: ChannelId, prompt: &str) -> 
                 .await?;
         }
         Err(error) => match error {
-            PaintImageError::SafetyError => {
+            PaintImageError::Safety => {
                 ctx.say("Bonk!!! Go directly to horny jail").await?;
             }
-            PaintImageError::LimitReachedError => {
+            PaintImageError::LimitReached => {
                 ctx.say("Looks like I'm all out of paint this month :(")
                     .await?;
             }
@@ -110,7 +110,7 @@ async fn get_openai_image(prompt: &str) -> Result<Bytes, PaintImageError> {
     let generation_response = client
         .post("https://api.openai.com/v1/images/generations")
         .bearer_auth(std::env::var("OPENAI_TOKEN").expect("missing OPENAPI_TOKEN"))
-        .json(&ImageGenerationRequest { prompt: &prompt })
+        .json(&ImageGenerationRequest { prompt })
         .send()
         .await?;
     match generation_response.status() {
@@ -131,11 +131,11 @@ async fn get_openai_image(prompt: &str) -> Result<Bytes, PaintImageError> {
             let ai_error = generation_response.json::<ErrorResponse>().await?;
             if let Some(code) = ai_error.error.code {
                 if code == "billing_hard_limit_reached" {
-                    return Err(PaintImageError::LimitReachedError);
+                    return Err(PaintImageError::LimitReached);
                 }
             }
             if ai_error.error.message.contains("safety") {
-                return Err(PaintImageError::SafetyError);
+                return Err(PaintImageError::Safety);
             }
             Err(PaintImageError::NetworkError)
         }
