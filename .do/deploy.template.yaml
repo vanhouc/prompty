@@ -9,11 +9,9 @@ spec:
     - key: DISCORD_TOKEN
       scope: RUN_AND_BUILD_TIME
       type: SECRET
-      value: "Enter your Discord Bot Token"
     - key: OPENAI_TOKEN
       scope: RUN_AND_BUILD_TIME
       type: SECRET
-      value: "Enter your OpenAI API Key"
     github:
       branch: master
       deploy_on_push: true
