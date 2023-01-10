@@ -1,4 +1,5 @@
-use poise::serenity_prelude::{self as serenity};
+use bytes::Bytes;
+use poise::serenity_prelude::{self as serenity, ChannelId, Message};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +10,7 @@ struct ImageGenerationRequest<'a> {
 
 #[derive(Deserialize)]
 struct ImageGenerationResponse {
-    data: Vec<ImageGenerationResponseData>,
+    data: [ImageGenerationResponseData; 1],
 }
 
 #[derive(Deserialize)]
@@ -30,6 +31,22 @@ struct ImageGenerationResponseData {
 
 #[derive(Debug)]
 struct Data {} // User data, which is stored and accessible in all command invocations
+#[derive(thiserror::Error, Debug)]
+enum PaintImageError {
+    #[error("OpenAI returned a safety error because the request was inappropriate")]
+    SafetyError,
+    #[error("The OpenAI account backing the bot reached its spending limit")]
+    LimitReachedError,
+    #[error("General network error occurred while fetching image")]
+    NetworkError,
+}
+
+impl From<reqwest::Error> for PaintImageError {
+    fn from(_: reqwest::Error) -> Self {
+        Self::NetworkError
+    }
+}
+
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
@@ -41,69 +58,89 @@ async fn prompt(
 ) -> Result<(), Error> {
     // It can take some time for openai to respond so send a defferal to discord to give us more time
     ctx.defer().await?;
+    prompt_internal(ctx, ctx.channel_id(), &prompt).await
+}
+
+/// Takes a text prompt and creates a lovely image
+#[poise::command(context_menu_command = "Draw Message")]
+async fn draw_message(
+    ctx: Context<'_>,
+    #[description = "A text prompt for prompty to work off of"] message: Message,
+) -> Result<(), Error> {
+    ctx.defer_ephemeral().await?;
+    let thread = message
+        .channel_id
+        .create_public_thread(ctx, &message, |f| f.name("Drawing"))
+        .await?;
+    prompt_internal(ctx, thread.into(), &message.content).await?;
+    ctx.say("All done!!!").await?;
+    Ok(())
+}
+
+async fn prompt_internal(ctx: Context<'_>, channel: ChannelId, prompt: &str) -> Result<(), Error> {
+    match get_openai_image(&prompt).await {
+        Ok(bytes) => {
+            let file = (&bytes[..], "ai_response.png");
+            channel
+                .send_message(ctx, |m| {
+                    m.add_file(file)
+                        .embed(|e| e.title(prompt).attachment("ai_response.png"))
+                })
+                .await?;
+        }
+        Err(error) => match error {
+            PaintImageError::SafetyError => {
+                ctx.say("Bonk!!! Go directly to horny jail").await?;
+            }
+            PaintImageError::LimitReachedError => {
+                ctx.say("Looks like I'm all out of paint this month :(")
+                    .await?;
+            }
+            PaintImageError::NetworkError => {
+                ctx.say("Uh oh something went wrong while I was painting your reply!")
+                    .await?;
+            }
+        },
+    }
+    Ok(())
+}
+
+async fn get_openai_image(prompt: &str) -> Result<Bytes, PaintImageError> {
     let client = reqwest::Client::new();
-    let openai_request = client
+    let generation_response = client
         .post("https://api.openai.com/v1/images/generations")
         .bearer_auth(std::env::var("OPENAI_TOKEN").expect("missing OPENAPI_TOKEN"))
         .json(&ImageGenerationRequest { prompt: &prompt })
         .send()
-        .await;
-    match openai_request {
-        Ok(response) => match response.status() {
-            StatusCode::OK => {
-                if let Ok(image_response) = response.json::<ImageGenerationResponse>().await {
-                    if let Some(data) = image_response.data.get(0) {
-                        if let Ok(image) = client.get(&data.url).send().await {
-                            if let Ok(image_bytes) = image.bytes().await {
-                                let file = (&image_bytes[..], "ai_response.png");
-                                ctx.send(|m| {
-                                    m.attachment(file.into())
-                                        .embed(|e| e.title(prompt).attachment("ai_response.png"))
-                                })
-                                .await?;
-                                return Ok(());
-                            }
-                        }
-                    }
-                }
-                // Catch all in case anything fails while unpacking and posting the generated image
-                ctx.say("Uh oh something went wrong while I was painting your reply!")
-                    .await?;
-            }
-            StatusCode::BAD_REQUEST => {
-                if let Ok(error_response) = response.json::<ErrorResponse>().await {
-                    if error_response.error.message.contains("safety") {
-                        ctx.say("Bonk!!! Go directly to horny jail").await?;
-                    } else if let Some(error_code) = error_response.error.code {
-                        if error_code == "billing_hard_limit_reached" {
-                            ctx.say("Looks like I'm all out of paint this month :(")
-                                .await?;
-                        } else {
-                            ctx.say(format!(
-                                "I received an error code I don't know: {error_code}"
-                            ))
-                            .await?;
-                        }
-                    }
-                } else {
-                    ctx.say("Wow that request was so terrible I can't even tell whats wrong")
-                        .await?;
+        .await?;
+    match generation_response.status() {
+        StatusCode::OK => client
+            .get(
+                &generation_response
+                    .json::<ImageGenerationResponse>()
+                    .await?
+                    .data[0]
+                    .url,
+            )
+            .send()
+            .await?
+            .bytes()
+            .await
+            .map_err(|e| e.into()),
+        StatusCode::BAD_REQUEST => {
+            let ai_error = generation_response.json::<ErrorResponse>().await?;
+            if let Some(code) = ai_error.error.code {
+                if code == "billing_hard_limit_reached" {
+                    return Err(PaintImageError::LimitReachedError);
                 }
             }
-            _ => {
-                let status_code = response.status();
-                ctx.say(format!(
-                    "I received a status code I don't know how to deal with: {status_code}"
-                ))
-                .await?;
+            if ai_error.error.message.contains("safety") {
+                return Err(PaintImageError::SafetyError);
             }
-        },
-        Err(_) => {
-            ctx.say("Oh no it appears the artist is unreachable!")
-                .await?;
+            Err(PaintImageError::NetworkError)
         }
+        _ => Err(PaintImageError::NetworkError),
     }
-    Ok(())
 }
 
 #[tokio::main]
@@ -111,7 +148,7 @@ async fn main() {
     let _ = dotenv::dotenv();
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![prompt()],
+            commands: vec![prompt(), draw_message()],
             ..Default::default()
         })
         .token(std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN"))
