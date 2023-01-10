@@ -61,7 +61,7 @@ async fn prompt(
     prompt_internal(ctx, ctx.channel_id(), &prompt).await
 }
 
-/// Takes a text prompt and creates a lovely image
+/// Draw an image describing this messages content
 #[poise::command(context_menu_command = "Draw Message")]
 async fn draw_message(
     ctx: Context<'_>,
