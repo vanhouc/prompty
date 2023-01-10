@@ -1,0 +1,22 @@
+spec:
+  alerts:
+  - rule: DEPLOYMENT_FAILED
+  name: prompty-app
+  region: nyc
+  workers:
+  - dockerfile_path: Dockerfile
+    envs:
+    - key: DISCORD_TOKEN
+      scope: RUN_AND_BUILD_TIME
+      type: SECRET
+      value: "Enter your Discord Bot Token"
+      type: SECRET
+      value: "Enter your OpenAI API Key"
+    github:
+      branch: master
+      deploy_on_push: true
+      repo: vanhouc/prompty
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    name: prompty
+    source_dir: /

@@ -1,3 +1,5 @@
+[![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/vanhouc/prompty/tree/master)
+
 # Prompty
 
 Prompty is an AI artist that will use DALL-E to generate an image response to your prompts
