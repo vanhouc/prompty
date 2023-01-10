@@ -24,7 +24,7 @@ async fn prompt(
 #[poise::command(context_menu_command = "Draw Message")]
 async fn draw_message(
     ctx: Context<'_>,
-    #[description = "A text prompt for prompty to work off of"] message: Message,
+    #[description = "A message to draw an image from"] message: Message,
 ) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let thread = message
