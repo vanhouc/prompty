@@ -17,7 +17,7 @@ async fn prompt(
 ) -> Result<(), Error> {
     // It can take some time for openai to respond so send a defferal to discord to give us more time
     ctx.defer().await?;
-    prompt_internal(ctx, ctx.channel_id(), &prompt).await
+    prompt_internal(ctx, None, &prompt).await
 }
 
 /// Draw an image describing this messages content
@@ -31,21 +31,33 @@ async fn draw_message(
         .channel_id
         .create_public_thread(ctx, &message, |f| f.name("Drawing"))
         .await?;
-    prompt_internal(ctx, thread.into(), &message.content).await?;
+    prompt_internal(ctx, Some(thread.into()), &message.content).await?;
     ctx.say("All done!!!").await?;
     Ok(())
 }
 
-async fn prompt_internal(ctx: Context<'_>, channel: ChannelId, prompt: &str) -> Result<(), Error> {
+async fn prompt_internal(
+    ctx: Context<'_>,
+    channel: Option<ChannelId>,
+    prompt: &str,
+) -> Result<(), Error> {
     match openai::get_openai_image(prompt).await {
         Ok(bytes) => {
             let file = (&bytes[..], "ai_response.png");
-            channel
-                .send_message(ctx, |m| {
-                    m.add_file(file)
+            if let Some(channel) = channel {
+                channel
+                    .send_message(ctx, |m| {
+                        m.add_file(file)
+                            .embed(|e| e.title(prompt).attachment("ai_response.png"))
+                    })
+                    .await?;
+            } else {
+                ctx.send(|m| {
+                    m.attachment(file.into())
                         .embed(|e| e.title(prompt).attachment("ai_response.png"))
                 })
                 .await?;
+            }
         }
         Err(error) => match error {
             PaintImageError::Safety => {
