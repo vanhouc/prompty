@@ -1,6 +1,6 @@
 mod openai;
 
-use openai::PaintImageError;
+use openai::OpenAiError;
 use poise::serenity_prelude::{self as serenity, ChannelId, Message};
 
 #[derive(Debug)]
@@ -36,6 +36,36 @@ async fn draw_message(
     Ok(())
 }
 
+/// Ask the bot a question
+#[poise::command(slash_command)]
+async fn ask(
+    ctx: Context<'_>,
+    #[description = "A question for the bot to answer"] question: String,
+) -> Result<(), Error> {
+    ctx.defer().await?;
+    match openai::get_openai_chat(question.clone()).await {
+        Ok(response) => {
+            ctx.send(|m| m.embed(|e| e.title(&question).description(response)))
+                .await?;
+            return Ok(());
+        }
+        Err(error) => match error {
+            OpenAiError::Safety => {
+                ctx.say("Bonk!!! Go directly to horny jail").await?;
+            }
+            OpenAiError::LimitReached => {
+                ctx.say("Looks like I'm all out of paint this month :(")
+                    .await?;
+            }
+            OpenAiError::NetworkError => {
+                ctx.say("Uh oh something went wrong while I was trying to respond!")
+                    .await?;
+            }
+        },
+    }
+    Ok(())
+}
+
 async fn prompt_internal(
     ctx: Context<'_>,
     channel: Option<ChannelId>,
@@ -60,14 +90,14 @@ async fn prompt_internal(
             }
         }
         Err(error) => match error {
-            PaintImageError::Safety => {
+            OpenAiError::Safety => {
                 ctx.say("Bonk!!! Go directly to horny jail").await?;
             }
-            PaintImageError::LimitReached => {
+            OpenAiError::LimitReached => {
                 ctx.say("Looks like I'm all out of paint this month :(")
                     .await?;
             }
-            PaintImageError::NetworkError => {
+            OpenAiError::NetworkError => {
                 ctx.say("Uh oh something went wrong while I was painting your reply!")
                     .await?;
             }
@@ -81,7 +111,7 @@ async fn main() {
     let _ = dotenv::dotenv();
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![prompt(), draw_message()],
+            commands: vec![prompt(), draw_message(), ask()],
             ..Default::default()
         })
         .token(std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN"))
