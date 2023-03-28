@@ -27,19 +27,6 @@ enum ChatCompletionMessageRole {
     Assistant,
 }
 
-// impl Serialize for ChatCompletionMessageRole {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         match &self {
-//             ChatCompletionMessageRole::User => serializer.serialize_str("user"),
-//             ChatCompletionMessageRole::System => serializer.serialize_str("system"),
-//             ChatCompletionMessageRole::Assistant => serializer.serialize_str("assistant"),
-//         }
-//     }
-// }
-
 #[derive(Deserialize)]
 struct ChatCompletionResponse {
     choices: Vec<ChatCompletionResponseChoice>,
