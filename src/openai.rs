@@ -46,7 +46,6 @@ struct ChatCompletionResponse {
 }
 #[derive(Deserialize)]
 struct ChatCompletionResponseChoice {
-    index: u8,
     message: ChatCompletionMessage,
 }
 
