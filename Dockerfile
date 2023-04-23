@@ -9,9 +9,5 @@ RUN --mount=type=cache,target=/usr/local/cargo,from=rust:latest,source=/usr/loca
 
 FROM debian:bullseye-slim
 
-WORKDIR /app
-
-# Get compiled binaries from builder's cargo install directory
-COPY --from=builder /usr/src/prompty /app/prompty
-
+COPY --from=builder /usr/src/prompty/prompty /usr/local/bin/prompty
 CMD ["prompty"]
