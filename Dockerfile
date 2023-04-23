@@ -1,12 +1,17 @@
-FROM rust:1.66 as builder
+FROM rust:latest as builder
 
 WORKDIR /usr/src/prompty
 COPY . .
-RUN cargo install --path .
+# Will build and cache the binary and dependent crates in release mode
+RUN --mount=type=cache,target=/usr/local/cargo,from=rust:latest,source=/usr/local/cargo \
+    --mount=type=cache,target=target \
+    cargo build --release && mv ./target/release/prompty ./prompty
 
-FROM debian:buster-slim
-# If system packages are needed uncomment the following line and add them in place of "extra-runtime-dependencies"
-# RUN apt-get update && apt-get install -y extra-runtime-dependencies && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/cargo/bin/prompty /usr/local/bin/prompty
+FROM debian:bullseye-slim
+
+WORKDIR /app
+
+# Get compiled binaries from builder's cargo install directory
+COPY --from=builder /usr/src/prompty /app/prompty
 
 CMD ["prompty"]

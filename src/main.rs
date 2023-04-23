@@ -108,7 +108,7 @@ async fn prompt_internal(
 
 #[tokio::main]
 async fn main() {
-    let _ = dotenv::dotenv();
+    dotenv::dotenv().ok();
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![prompt(), draw_message(), ask()],
