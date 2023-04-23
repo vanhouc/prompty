@@ -11,18 +11,18 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 
 /// Takes a text prompt and creates a lovely image
 #[poise::command(slash_command)]
-async fn prompt(
+async fn paint(
     ctx: Context<'_>,
-    #[description = "A text prompt for prompty to work off of"] prompt: String,
+    #[description = "A text description for prompty to work off of"] description: String,
 ) -> Result<(), Error> {
     // It can take some time for openai to respond so send a defferal to discord to give us more time
     ctx.defer().await?;
-    prompt_internal(ctx, None, &prompt).await
+    paint_internal(ctx, None, &description).await
 }
 
 /// Draw an image describing this messages content
 #[poise::command(context_menu_command = "Draw Message")]
-async fn draw_message(
+async fn paint_message(
     ctx: Context<'_>,
     #[description = "A message to draw an image from"] message: Message,
 ) -> Result<(), Error> {
@@ -31,7 +31,7 @@ async fn draw_message(
         .channel_id
         .create_public_thread(ctx, &message, |f| f.name("Drawing"))
         .await?;
-    prompt_internal(ctx, Some(thread.into()), &message.content).await?;
+    paint_internal(ctx, Some(thread.into()), &message.content).await?;
     ctx.say("All done!!!").await?;
     Ok(())
 }
@@ -66,7 +66,7 @@ async fn ask(
     Ok(())
 }
 
-async fn prompt_internal(
+async fn paint_internal(
     ctx: Context<'_>,
     channel: Option<ChannelId>,
     prompt: &str,
@@ -111,7 +111,7 @@ async fn main() {
     dotenv::dotenv().ok();
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![prompt(), draw_message(), ask()],
+            commands: vec![paint(), paint_message(), ask()],
             ..Default::default()
         })
         .token(std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN"))
