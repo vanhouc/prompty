@@ -1,7 +1,12 @@
 mod openai;
 
+use std::time::Duration;
+
 use openai::OpenAiError;
 use poise::serenity_prelude::{self as serenity, ChannelId, Message};
+use tokio::time::sleep;
+use tracing::{info, instrument};
+use tracing_subscriber::{filter, prelude::*};
 
 #[derive(Debug)]
 struct Data {} // User data, which is stored and accessible in all command invocations
@@ -10,8 +15,8 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 /// Takes a text prompt and creates a lovely image
+#[instrument]
 #[poise::command(slash_command)]
-#[tracing::instrument()]
 async fn paint(
     ctx: Context<'_>,
     #[description = "A text description for prompty to work off of"] description: String,
@@ -22,8 +27,8 @@ async fn paint(
 }
 
 /// Draw an image describing this messages content
+#[instrument]
 #[poise::command(context_menu_command = "Draw Message")]
-#[tracing::instrument()]
 async fn paint_message(
     ctx: Context<'_>,
     #[description = "A message to draw an image from"] message: Message,
@@ -39,8 +44,8 @@ async fn paint_message(
 }
 
 /// Ask the bot a question
+#[instrument(skip(ctx))]
 #[poise::command(slash_command)]
-#[tracing::instrument()]
 async fn ask(
     ctx: Context<'_>,
     #[description = "A question for the bot to answer"] question: String,
@@ -52,19 +57,22 @@ async fn ask(
                 .await?;
             return Ok(());
         }
-        Err(error) => match error {
-            OpenAiError::Safety => {
-                ctx.say("Bonk!!! Go directly to horny jail").await?;
+        Err(error) => {
+            sentry::capture_error(&error);
+            match error {
+                OpenAiError::Safety => {
+                    ctx.say("Bonk!!! Go directly to horny jail").await?;
+                }
+                OpenAiError::LimitReached => {
+                    ctx.say("Looks like I'm all out of paint this month :(")
+                        .await?;
+                }
+                OpenAiError::NetworkError => {
+                    ctx.say("Uh oh something went wrong while I was trying to respond!")
+                        .await?;
+                }
             }
-            OpenAiError::LimitReached => {
-                ctx.say("Looks like I'm all out of paint this month :(")
-                    .await?;
-            }
-            OpenAiError::NetworkError => {
-                ctx.say("Uh oh something went wrong while I was trying to respond!")
-                    .await?;
-            }
-        },
+        }
     }
     Ok(())
 }
@@ -92,37 +100,51 @@ async fn paint_internal(
                 .await?;
             }
         }
-        Err(error) => match error {
-            OpenAiError::Safety => {
-                ctx.say("Bonk!!! Go directly to horny jail").await?;
+        Err(error) => {
+            sentry::capture_error(&error);
+            match error {
+                OpenAiError::Safety => {
+                    ctx.say("Bonk!!! Go directly to horny jail").await?;
+                }
+                OpenAiError::LimitReached => {
+                    ctx.say("Looks like I'm all out of paint this month :(")
+                        .await?;
+                }
+                OpenAiError::NetworkError => {
+                    ctx.say("Uh oh something went wrong while I was trying to respond!")
+                        .await?;
+                }
             }
-            OpenAiError::LimitReached => {
-                ctx.say("Looks like I'm all out of paint this month :(")
-                    .await?;
-            }
-            OpenAiError::NetworkError => {
-                ctx.say("Uh oh something went wrong while I was painting your reply!")
-                    .await?;
-            }
-        },
+        }
     }
     Ok(())
 }
+#[instrument]
+async fn test_func() {
+    sleep(Duration::from_secs(1)).await;
+    info!("Done Sleeping");
+}
 
 #[tokio::main]
+#[instrument]
 async fn main() {
     dotenv::dotenv().ok();
+
+    tracing_subscriber::Registry::default()
+        .with(tracing_subscriber::fmt::layer().with_filter(filter::LevelFilter::INFO))
+        .with(sentry::integrations::tracing::layer())
+        .init();
 
     let _guard = sentry::init((
         std::env::var("SENTRY_DSN").expect("missing SENTRY_DSN"),
         sentry::ClientOptions {
             release: sentry::release_name!(),
             traces_sample_rate: 1.0,
-            enable_profiling: true,
-            profiles_sample_rate: 1.0,
             ..Default::default()
         },
     ));
+
+    test_func().await;
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
