@@ -62,15 +62,21 @@ struct ImageGenerationResponseData {
 pub enum OpenAiError {
     #[error("OpenAI returned a safety error because the request was inappropriate")]
     Safety,
-    #[error("The OpenAI account backing the bot reached its spending limit")]
+    #[error("OpenAI account backing the bot reached its spending limit")]
     LimitReached,
-    #[error("General network error occurred while fetching response")]
-    NetworkError,
+    #[error("OpenAI returned a non-specific bad request error")]
+    BadRequest,
+    #[error("OpenAI returned an authentication error ")]
+    Unauthorized,
+    #[error("A network error occurred while fetching response")]
+    NetworkError(Option<StatusCode>),
+    #[error("An unexpected response was returne")]
+    Malformed,
 }
 
 impl From<reqwest::Error> for OpenAiError {
-    fn from(_: reqwest::Error) -> Self {
-        Self::NetworkError
+    fn from(err: reqwest::Error) -> Self {
+        Self::NetworkError(err.status())
     }
 }
 #[instrument]
@@ -96,7 +102,7 @@ pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
             .await?
             .choices
             .pop()
-            .ok_or(OpenAiError::NetworkError)?
+            .ok_or(OpenAiError::Malformed)?
             .message
             .content),
         StatusCode::BAD_REQUEST => {
@@ -109,9 +115,9 @@ pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
             if ai_error.error.message.contains("safety") {
                 return Err(OpenAiError::Safety);
             }
-            Err(OpenAiError::NetworkError)
+            Err(OpenAiError::NetworkError(Some(StatusCode::BAD_REQUEST)))
         }
-        _ => Err(OpenAiError::NetworkError),
+        _ => Err(OpenAiError::NetworkError(Some(chat_response.status()))),
     }
 }
 #[instrument]
@@ -147,9 +153,12 @@ pub async fn get_openai_image(prompt: &str) -> Result<Bytes, OpenAiError> {
             if ai_error.error.message.contains("safety") {
                 return Err(OpenAiError::Safety);
             }
-            Err(OpenAiError::NetworkError)
+            Err(OpenAiError::BadRequest)
         }
-        _ => Err(OpenAiError::NetworkError),
+        StatusCode::UNAUTHORIZED => Err(OpenAiError::Unauthorized),
+        _ => Err(OpenAiError::NetworkError(Some(
+            generation_response.status(),
+        ))),
     }
 }
 

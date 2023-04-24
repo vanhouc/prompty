@@ -70,7 +70,7 @@ async fn ask(
                     ctx.say("Looks like I'm all out of paint this month :(")
                         .await?;
                 }
-                OpenAiError::NetworkError => {
+                _ => {
                     ctx.say("Uh oh something went wrong while I was trying to respond!")
                         .await?;
                 }
@@ -115,7 +115,7 @@ async fn paint_internal(
                     ctx.say("Looks like I'm all out of paint this month :(")
                         .await?;
                 }
-                OpenAiError::NetworkError => {
+                _ => {
                     ctx.say("Uh oh something went wrong while I was trying to respond!")
                         .await?;
                 }
