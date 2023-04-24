@@ -111,7 +111,7 @@ async fn paint_internal(
 
 #[tokio::main]
 async fn main() {
-    let _ = dotenv::dotenv();
+    dotenv::dotenv().ok();
 
     let _guard = sentry::init((
         std::env::var("SENTRY_DSN").expect("missing SENTRY_DSN"),
