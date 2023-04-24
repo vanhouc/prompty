@@ -7,7 +7,7 @@ RUN --mount=type=cache,target=/usr/local/cargo,from=rust:latest,source=/usr/loca
     --mount=type=cache,target=target \
     cargo build --release && mv ./target/release/prompty ./prompty
 
-FROM debian:bullseye-slim
+FROM debian:bullseye
 
 COPY --from=builder /usr/src/prompty/prompty /usr/local/bin/prompty
 CMD ["prompty"]
