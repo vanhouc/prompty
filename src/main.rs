@@ -11,6 +11,7 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 
 /// Takes a text prompt and creates a lovely image
 #[poise::command(slash_command)]
+#[tracing::instrument()]
 async fn paint(
     ctx: Context<'_>,
     #[description = "A text description for prompty to work off of"] description: String,
@@ -22,6 +23,7 @@ async fn paint(
 
 /// Draw an image describing this messages content
 #[poise::command(context_menu_command = "Draw Message")]
+#[tracing::instrument()]
 async fn paint_message(
     ctx: Context<'_>,
     #[description = "A message to draw an image from"] message: Message,
@@ -38,6 +40,7 @@ async fn paint_message(
 
 /// Ask the bot a question
 #[poise::command(slash_command)]
+#[tracing::instrument()]
 async fn ask(
     ctx: Context<'_>,
     #[description = "A question for the bot to answer"] question: String,
@@ -108,7 +111,19 @@ async fn paint_internal(
 
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().ok();
+    let _ = dotenv::dotenv();
+
+    let _guard = sentry::init((
+        std::env::var("SENTRY_DSN").expect("missing SENTRY_DSN"),
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            traces_sample_rate: 1.0,
+            enable_profiling: true,
+            profiles_sample_rate: 1.0,
+            ..Default::default()
+        },
+    ));
+
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![paint(), paint_message(), ask()],
