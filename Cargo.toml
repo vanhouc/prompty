@@ -23,7 +23,6 @@ sentry = { version = "0.31.0", default-features = false, features = [
     "backtrace",
     "contexts",
     "panic",
-    "transport",
     "reqwest",
     "rustls",
     "tracing",
