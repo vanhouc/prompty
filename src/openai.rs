@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 #[derive(Serialize)]
 struct ImageGenerationRequest<'a> {
@@ -63,7 +64,7 @@ pub enum OpenAiError {
     Safety,
     #[error("The OpenAI account backing the bot reached its spending limit")]
     LimitReached,
-    #[error("General network error occurred while fetching image")]
+    #[error("General network error occurred while fetching response")]
     NetworkError,
 }
 
@@ -72,7 +73,7 @@ impl From<reqwest::Error> for OpenAiError {
         Self::NetworkError
     }
 }
-
+#[instrument]
 pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
     let client = reqwest::Client::new();
     let chat_response = client
@@ -113,7 +114,7 @@ pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
         _ => Err(OpenAiError::NetworkError),
     }
 }
-
+#[instrument]
 pub async fn get_openai_image(prompt: &str) -> Result<Bytes, OpenAiError> {
     let client = reqwest::Client::new();
     let generation_response = client

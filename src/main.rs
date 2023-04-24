@@ -1,11 +1,9 @@
 mod openai;
 
-use std::time::Duration;
-
 use openai::OpenAiError;
 use poise::serenity_prelude::{self as serenity, ChannelId, Message};
-use tokio::time::sleep;
-use tracing::{info, instrument};
+use tokio::runtime::Runtime;
+use tracing::{error, info, instrument};
 use tracing_subscriber::{filter, prelude::*};
 
 #[derive(Debug)]
@@ -21,6 +19,7 @@ async fn paint(
     ctx: Context<'_>,
     #[description = "A text description for prompty to work off of"] description: String,
 ) -> Result<(), Error> {
+    info!("Received paint request");
     // It can take some time for openai to respond so send a defferal to discord to give us more time
     ctx.defer().await?;
     paint_internal(ctx, None, &description).await
@@ -33,6 +32,7 @@ async fn paint_message(
     ctx: Context<'_>,
     #[description = "A message to draw an image from"] message: Message,
 ) -> Result<(), Error> {
+    info!("Received paint message request");
     ctx.defer_ephemeral().await?;
     let thread = message
         .channel_id
@@ -50,15 +50,18 @@ async fn ask(
     ctx: Context<'_>,
     #[description = "A question for the bot to answer"] question: String,
 ) -> Result<(), Error> {
+    info!("Received question");
     ctx.defer().await?;
+    info!("Submitting question to OpenAI");
     match openai::get_openai_chat(question.clone()).await {
         Ok(response) => {
+            info!("Received valid response from OpenAI");
             ctx.send(|m| m.embed(|e| e.title(&question).description(response)))
                 .await?;
-            return Ok(());
+            info!("Posted answer")
         }
         Err(error) => {
-            sentry::capture_error(&error);
+            error!("{}", &error);
             match error {
                 OpenAiError::Safety => {
                     ctx.say("Bonk!!! Go directly to horny jail").await?;
@@ -76,14 +79,15 @@ async fn ask(
     }
     Ok(())
 }
-
 async fn paint_internal(
     ctx: Context<'_>,
     channel: Option<ChannelId>,
     prompt: &str,
 ) -> Result<(), Error> {
+    info!("Submitting paint request to OpenAI");
     match openai::get_openai_image(prompt).await {
         Ok(bytes) => {
+            info!("Received valid response from OpenAI");
             let file = (&bytes[..], "ai_response.png");
             if let Some(channel) = channel {
                 channel
@@ -99,6 +103,7 @@ async fn paint_internal(
                 })
                 .await?;
             }
+            info!("Posted painting")
         }
         Err(error) => {
             sentry::capture_error(&error);
@@ -119,23 +124,12 @@ async fn paint_internal(
     }
     Ok(())
 }
-#[instrument]
-async fn test_func() {
-    sleep(Duration::from_secs(1)).await;
-    info!("Done Sleeping");
-}
 
-#[tokio::main]
 #[instrument]
-async fn main() {
+fn main() {
     dotenv::dotenv().ok();
 
-    tracing_subscriber::Registry::default()
-        .with(tracing_subscriber::fmt::layer().with_filter(filter::LevelFilter::INFO))
-        .with(sentry::integrations::tracing::layer())
-        .init();
-
-    let _guard = sentry::init((
+    let _sentry = sentry::init((
         std::env::var("SENTRY_DSN").expect("missing SENTRY_DSN"),
         sentry::ClientOptions {
             release: sentry::release_name!(),
@@ -144,7 +138,14 @@ async fn main() {
         },
     ));
 
-    test_func().await;
+    tracing_subscriber::Registry::default()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .pretty()
+                .with_filter(filter::LevelFilter::INFO),
+        )
+        .with(sentry::integrations::tracing::layer())
+        .init();
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
@@ -160,5 +161,7 @@ async fn main() {
             })
         });
 
-    framework.run().await.unwrap();
+    let rt = Runtime::new().unwrap();
+
+    rt.block_on(framework.run()).unwrap();
 }
