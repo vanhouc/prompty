@@ -68,17 +68,12 @@ pub enum OpenAiError {
     BadRequest,
     #[error("OpenAI returned an authentication error ")]
     Unauthorized,
-    #[error("A network error occurred while fetching response")]
-    NetworkError(Option<StatusCode>),
-    #[error("An unexpected response was returne")]
+    #[error(transparent)]
+    NetworkError(#[from] reqwest::Error),
+    #[error("An unexpected response was returned")]
     Malformed,
 }
 
-impl From<reqwest::Error> for OpenAiError {
-    fn from(err: reqwest::Error) -> Self {
-        Self::NetworkError(err.status())
-    }
-}
 #[instrument]
 pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
     let client = reqwest::Client::new();
@@ -115,9 +110,9 @@ pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
             if ai_error.error.message.contains("safety") {
                 return Err(OpenAiError::Safety);
             }
-            Err(OpenAiError::NetworkError(Some(StatusCode::BAD_REQUEST)))
+            Err(OpenAiError::BadRequest)
         }
-        _ => Err(OpenAiError::NetworkError(Some(chat_response.status()))),
+        _ => Err(OpenAiError::Malformed),
     }
 }
 #[instrument]
@@ -156,9 +151,7 @@ pub async fn get_openai_image(prompt: &str) -> Result<Bytes, OpenAiError> {
             Err(OpenAiError::BadRequest)
         }
         StatusCode::UNAUTHORIZED => Err(OpenAiError::Unauthorized),
-        _ => Err(OpenAiError::NetworkError(Some(
-            generation_response.status(),
-        ))),
+        _ => Err(OpenAiError::Malformed),
     }
 }
 
