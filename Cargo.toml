@@ -6,17 +6,25 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+reqwest = { version = "0.11", features = ["rustls-tls"] }
 bytes = "1"
 thiserror = "1"
 poise = "0.5"
 dotenv = "0.15"
-reqwest = "0.11"
 tokio = { version = "1.24", default-features = false, features = [
     "macros",
     "rt-multi-thread",
 ] }
 serde = "1.0"
 serde_json = "1.0"
-sentry = { version = "0.31.0", features = ["tracing"] }
+sentry = { version = "0.31.0", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "panic",
+    "transport",
+    "reqwest",
+    "rustls",
+] }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
+sentry-tracing = "0.31.0"

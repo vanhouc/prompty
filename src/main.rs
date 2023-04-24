@@ -144,7 +144,7 @@ fn main() {
                 .pretty()
                 .with_filter(filter::LevelFilter::INFO),
         )
-        .with(sentry::integrations::tracing::layer())
+        .with(sentry_tracing::layer())
         .init();
 
     let framework = poise::Framework::builder()
