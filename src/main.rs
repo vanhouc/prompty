@@ -6,7 +6,7 @@ use poise::{
     serenity_prelude::{self as serenity, Message},
 };
 use tracing::{error, info, instrument};
-use tracing_subscriber::{filter, prelude::*, EnvFilter};
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 #[derive(Debug)]
 struct Data {} // User data, which is stored and accessible in all command invocations
