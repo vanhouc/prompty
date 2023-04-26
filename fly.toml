@@ -5,3 +5,6 @@
 
 app = "prompty"
 primary_region = "iad"
+
+[env]
+RUST_LOG = "INFO"

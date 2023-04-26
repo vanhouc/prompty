@@ -6,7 +6,7 @@ use poise::{
     serenity_prelude::{self as serenity, Message},
 };
 use tracing::{error, info, instrument};
-use tracing_subscriber::{filter, prelude::*};
+use tracing_subscriber::{filter, prelude::*, EnvFilter};
 
 #[derive(Debug)]
 struct Data {} // User data, which is stored and accessible in all command invocations
@@ -128,11 +128,8 @@ async fn main() {
     ));
 
     tracing_subscriber::Registry::default()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .pretty()
-                .with_filter(filter::LevelFilter::INFO),
-        )
+        .with(EnvFilter::from_default_env())
+        .with(tracing_subscriber::fmt::layer().pretty())
         .with(sentry::integrations::tracing::layer())
         .init();
 
