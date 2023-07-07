@@ -19,12 +19,10 @@ struct ChatCompletionMessage {
     content: String,
 }
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 enum ChatCompletionMessageRole {
-    #[serde(rename = "user")]
     User,
-    #[serde(rename = "system")]
     System,
-    #[serde(rename = "assistant")]
     Assistant,
 }
 
@@ -82,11 +80,19 @@ pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
         .bearer_auth(std::env::var("OPENAI_TOKEN").expect("missing OPENAPI_TOKEN"))
         .json(
             &(ChatCompletionRequest {
-                model: "gpt-3.5-turbo",
-                messages: vec![ChatCompletionMessage {
-                    role: ChatCompletionMessageRole::User,
-                    content: question,
-                }],
+                model: "gpt-4-0613",
+                messages: vec![
+                    ChatCompletionMessage {
+                        role: ChatCompletionMessageRole::System,
+                        content:
+                            "You are a sarcastic gamer named prompty who is on a discord server"
+                                .to_string(),
+                    },
+                    ChatCompletionMessage {
+                        role: ChatCompletionMessageRole::User,
+                        content: question,
+                    },
+                ],
             }),
         )
         .send()

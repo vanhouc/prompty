@@ -15,6 +15,7 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 /// Takes a text prompt and creates a lovely image
+#[instrument(skip(ctx))]
 #[command(slash_command)]
 async fn paint(
     ctx: Context<'_>,
@@ -41,6 +42,7 @@ async fn paint(
 }
 
 /// Draw an image describing this messages content
+#[instrument(skip(ctx))]
 #[command(context_menu_command = "Draw Message")]
 async fn paint_message(
     ctx: Context<'_>,
@@ -72,6 +74,7 @@ async fn paint_message(
 }
 
 /// Ask the bot a question
+#[instrument(skip(ctx))]
 #[command(slash_command)]
 async fn ask(
     ctx: Context<'_>,
