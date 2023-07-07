@@ -80,7 +80,7 @@ pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
         .bearer_auth(std::env::var("OPENAI_TOKEN").expect("missing OPENAPI_TOKEN"))
         .json(
             &(ChatCompletionRequest {
-                model: "gpt-4-0613",
+                model: "gpt-4",
                 messages: vec![
                     ChatCompletionMessage {
                         role: ChatCompletionMessageRole::System,
