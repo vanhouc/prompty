@@ -1,5 +1,7 @@
 mod openai;
 
+use tokio::sync::Mutex;
+
 use openai::OpenAiError;
 use poise::{
     command,
@@ -9,7 +11,9 @@ use tracing::{error, info, instrument};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 #[derive(Debug)]
-struct Data {} // User data, which is stored and accessible in all command invocations
+struct Data {
+    personality: Mutex<String>,
+} // User data, which is stored and accessible in all command invocations
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -83,7 +87,8 @@ async fn ask(
     info!("Received question");
     ctx.defer().await?;
     info!("Submitting question to OpenAI");
-    match openai::get_openai_chat(question.clone()).await {
+    let personality = ctx.data().personality.lock().await;
+    match openai::get_openai_chat(personality.clone(), question.clone()).await {
         Ok(response) => {
             info!("Received valid response from OpenAI");
             ctx.send(|m| m.embed(|e| e.title(&question).description(response)))
@@ -92,6 +97,22 @@ async fn ask(
         }
         Err(error) => handle_openai_error(ctx, &error).await,
     }
+    Ok(())
+}
+
+// Set the bots personality
+#[instrument(skip(ctx))]
+#[command(slash_command)]
+async fn personality(
+    ctx: Context<'_>,
+    #[description = "Set the bots personality with a description"] personality: String,
+) -> Result<(), Error> {
+    info!("Received personality description");
+    let mut existing_personality = ctx.data().personality.lock().await;
+    *existing_personality = personality;
+    ctx.say("Got it! From now on this is my personality!")
+        .await?;
+    info!("Set personality");
     Ok(())
 }
 
@@ -138,7 +159,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![paint(), paint_message(), ask()],
+            commands: vec![paint(), paint_message(), ask(), personality()],
             ..Default::default()
         })
         .token(std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN"))
@@ -146,7 +167,9 @@ async fn main() {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {})
+                Ok(Data {
+                    personality: Mutex::new("I'm a helpful assistant".to_string()),
+                })
             })
         });
 

@@ -73,7 +73,7 @@ pub enum OpenAiError {
 }
 
 #[instrument]
-pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
+pub async fn get_openai_chat(role: String, question: String) -> Result<String, OpenAiError> {
     let client = reqwest::Client::new();
     let chat_response = client
         .post("https://api.openai.com/v1/chat/completions")
@@ -84,9 +84,7 @@ pub async fn get_openai_chat(question: String) -> Result<String, OpenAiError> {
                 messages: vec![
                     ChatCompletionMessage {
                         role: ChatCompletionMessageRole::System,
-                        content:
-                            "You are a sarcastic gamer named prompty who is on a discord server"
-                                .to_string(),
+                        content: role,
                     },
                     ChatCompletionMessage {
                         role: ChatCompletionMessageRole::User,
