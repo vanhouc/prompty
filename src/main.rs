@@ -100,18 +100,36 @@ async fn ask(
     Ok(())
 }
 
+#[command(slash_command, subcommands("set", "get"))]
+async fn personality(_: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
 // Set the bots personality
 #[instrument(skip(ctx))]
 #[command(slash_command)]
-async fn personality(
+async fn get(ctx: Context<'_>) -> Result<(), Error> {
+    let existing_personality = ctx.data().personality.lock().await;
+    ctx.say(format!("My personality is: {existing_personality}",))
+        .await?;
+    info!("Set personality");
+    Ok(())
+}
+
+// Set the bots personality
+#[instrument(skip(ctx))]
+#[command(slash_command)]
+async fn set(
     ctx: Context<'_>,
-    #[description = "Set the bots personality with a description"] personality: String,
+    #[description = "Set the bots personality with a description"] new_personality: String,
 ) -> Result<(), Error> {
     info!("Received personality description");
     let mut existing_personality = ctx.data().personality.lock().await;
-    *existing_personality = personality;
-    ctx.say("Got it! From now on this is my personality!")
-        .await?;
+    *existing_personality = new_personality;
+    ctx.say(format!(
+        "Got it! From now on my personality is: {existing_personality}",
+    ))
+    .await?;
     info!("Set personality");
     Ok(())
 }
