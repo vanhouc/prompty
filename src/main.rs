@@ -10,10 +10,11 @@ use poise::{
 use tracing::{error, info, instrument};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
+// User data, which is stored and accessible in all command invocations
 #[derive(Debug)]
 struct Data {
     personality: Mutex<String>,
-} // User data, which is stored and accessible in all command invocations
+}
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -100,6 +101,29 @@ async fn ask(
     Ok(())
 }
 
+/// Ask the bot a question
+#[instrument(skip(ctx))]
+#[command(context_menu_command = "Ask Prompty")]
+async fn ask_context(
+    ctx: Context<'_>,
+    #[description = "A message to reply to"] message: Message,
+) -> Result<(), Error> {
+    info!("Received question");
+    ctx.defer().await?;
+    info!("Submitting question to OpenAI");
+    let personality = ctx.data().personality.lock().await;
+    match openai::get_openai_chat(personality.clone(), message.content.clone()).await {
+        Ok(response) => {
+            info!("Received valid response from OpenAI");
+            ctx.send(|m| m.embed(|e| e.title(message.content).description(response)))
+                .await?;
+            info!("Posted answer")
+        }
+        Err(error) => handle_openai_error(ctx, &error).await,
+    }
+    Ok(())
+}
+
 #[command(slash_command, subcommands("set", "get"))]
 async fn personality(_: Context<'_>) -> Result<(), Error> {
     Ok(())
@@ -112,7 +136,6 @@ async fn get(ctx: Context<'_>) -> Result<(), Error> {
     let existing_personality = ctx.data().personality.lock().await;
     ctx.say(format!("My personality is: {existing_personality}",))
         .await?;
-    info!("Set personality");
     Ok(())
 }
 
@@ -177,7 +200,13 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![paint(), paint_message(), ask(), personality()],
+            commands: vec![
+                paint(),
+                paint_message(),
+                ask(),
+                ask_context(),
+                personality(),
+            ],
             ..Default::default()
         })
         .token(std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN"))
