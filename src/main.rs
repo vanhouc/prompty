@@ -103,20 +103,23 @@ async fn ask(
 
 /// Ask the bot a question
 #[instrument(skip(ctx))]
-#[command(context_menu_command = "Ask Prompty")]
+#[command(
+    context_menu_command = "Ask Prompty",
+    required_permissions = "SEND_MESSAGES"
+)]
 async fn ask_context(
     ctx: Context<'_>,
     #[description = "A message to reply to"] message: Message,
 ) -> Result<(), Error> {
     info!("Received question");
-    ctx.defer().await?;
+    ctx.defer_ephemeral().await?;
     info!("Submitting question to OpenAI");
     let personality = ctx.data().personality.lock().await;
     match openai::get_openai_chat(personality.clone(), message.content.clone()).await {
         Ok(response) => {
             info!("Received valid response from OpenAI");
-            ctx.send(|m| m.embed(|e| e.title(message.content).description(response)))
-                .await?;
+            message.reply(ctx, response).await?;
+            ctx.say("All Done!!!").await?;
             info!("Posted answer")
         }
         Err(error) => handle_openai_error(ctx, &error).await,
